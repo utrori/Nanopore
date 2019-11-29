@@ -29,34 +29,38 @@ def split_sequence(sequence, split_length):
     return split_seq
 
 
-# This process split each read into the size split_length and map them to rDNA consensus sequence.
+# creates a temporary .fastq made by splitting each read.
 # The header for each split sequence is "the original header"_number.
-split_length = 4000
-rDNA_containing_reads = []
-alignment_scores = []
-# fastq for test
-#input_fastq = '/home/yutaro/data/cliveome/fastq_runid_0ee57c1a265c2f494821757929f1af60fe060a43_0.fastq'
-input_fastq = sys.argv[1]
-with open(input_fastq) as f:
-    for n, line in enumerate(f):
-        if n % 4 == 0:
-            header = line.strip()
-        if n % 4 == 1:
-            read = line.strip()
-            split_reads = split_sequence(read, split_length)
-        if n % 4 == 3:
-            quality = line.strip()
-            split_qualities = split_sequence(quality, split_length)
-            # here write temporary .fastq made by splitting each read.
-            with open('temp_fastq.fastq', 'w') as fw:
-                for i in range(len(split_reads)):
-                    split_header = [header.split()[0], ' '.join(header.split()[1:])]
-                    fw.write(split_header[0] + '_' + str(i+1) + ' ' + split_header[1] + '\n' + split_reads[i] + '\n+\n' + split_qualities[i] + '\n')
-            # perform bwa for the created fastq
-            # you can avoid printing the output of subprocess by directing the stdout to devnull
-            FNULL = open(os.devnull, 'w')
-            subprocess.run('bwa mem -M -x ont2d -t 5 /home/yutaro/nanopore/clive/rDNA_index/humRibosomal.fa temp_fastq.fastq > temp_sam.sam', shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
-            alignment_scores = check_rDNA_reads_in_sam('temp_sam.sam')
-            if any(AS > 0.5 for AS in alignment_scores):
-                with open('rDNA_containing_reads.fastq', 'a') as fw:
-                    fw.write(header + '\n' + read + '\n+\n' + quality + '\n')
+def make_temp_fastq(split_length, header, read, quality, tempfilename='temp_fastq.fastq'):
+    split_reads = split_sequence(read, split_length)
+    split_qualities = split_sequence(quality, split_length)
+    with open('temp_fastq.fastq', 'w') as fw:
+        for i in range(len(split_reads)):
+            split_header = [header.split()[0], ' '.join(header.split()[1:])]
+            fw.write(split_header[0] + '_' + str(i+1) + ' ' + split_header[1] + '\n' + split_reads[i] + '\n+\n' + split_qualities[i] + '\n')
+
+
+if __name__ == '__main__':
+    # This process split each read into the size of split_length and map them to rDNA consensus sequence.
+    split_length = 4000
+    #fastq for test
+    #input_fastq = '/home/yutaro/data/cliveome/fastq_runid_0ee57c1a265c2f494821757929f1af60fe060a43_0.fastq'
+    input_fastq = sys.argv[1]
+    with open(input_fastq) as f:
+        for n, line in enumerate(f):
+            if n % 4 == 0:
+                header = line.strip()
+            if n % 4 == 1:
+                read = line.strip()
+            if n % 4 == 3:
+                quality = line.strip()
+                make_temp_fastq(header, read, quality)
+
+                # perform bwa for the created fastq
+                # you can avoid printing the output of subprocess by directing the stdout to devnull
+                FNULL = open(os.devnull, 'w')
+                subprocess.run('bwa mem -M -x ont2d -t 5 /home/yutaro/nanopore/clive/rDNA_index/humRibosomal.fa temp_fastq.fastq > temp_sam.sam', shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
+                alignment_scores = check_rDNA_reads_in_sam('temp_sam.sam')
+                if any(AS > 0.5 for AS in alignment_scores):
+                    with open('rDNA_containing_reads.fastq', 'a') as fw:
+                        fw.write(header + '\n' + read + '\n+\n' + quality + '\n')
