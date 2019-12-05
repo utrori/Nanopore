@@ -12,6 +12,7 @@ def easy_flag(flag, base):
 
 
 def analyze_split_reads(samfile, split_length):
+    # this function receives a bwa output .sam file and output TRs.
     rDNA_len = 42999
     rDNA_TR_len = 13314
     flags = []
@@ -118,11 +119,20 @@ def count_direction_dist(set_of_TRs, split_length):
         else:
             inverse += 1
             inverse_distances.append(dist)
+    count = 0
+    for dist in same_distances:
+        if 35000 < dist < 50000:
+            continue
+        else:
+            count += 1
+    print(count)
     print((same, inverse))
     print(inverse_distances)
 
 
 def analyze_all_fastq_file(fastq, split_length, length_cutoff):
+    # this function read a fastq file and split each read and then map them to rDNA.
+    # Each mapped read is analyzed by analyze_split_reads to make TRs.
     count = 0
     set_of_TRs = []
     with open(fastq) as f:
@@ -180,10 +190,10 @@ if __name__ == '__main__':
     #set_of_TRs = analyze_all_fastq_file('rDNA_reads.fastq', split_length, length_cutoff)
     #pd.to_pickle(set_of_TRs, 'set_of_TRs.pkl')
     set_of_TRs = pd.read_pickle('set_of_TRs.pkl')
-    print_TRs(set_of_TRs[0][1])
     count_direction_dist(set_of_TRs, split_length)
-    analyze_fastq_by_header('rDNA_reads.fastq', '@fda2423a-5429-4625-a946-12f2f15bdee5', split_length)
-    print_TRs(find_TRs_by_header(set_of_TRs, '@fda2423a-5429-4625-a946-12f2f15bdee5'))
+    #analyze_fastq_by_header('rDNA_reads.fastq', '@fda2423a-5429-4625-a946-12f2f15bdee5', split_length)
+    #print_TRs(find_TRs_by_header(set_of_TRs, '@fda2423a-5429-4625-a946-12f2f15bdee5'))
+    quit()
     with open('reads_visualized.txt', 'w') as fw:
         for n, TRs in enumerate(set_of_TRs):
             fw.write(str(n) + '\t' + TRs[0].split()[0] + '\n' +  visualize_TRs(TRs[1], split_length) + '\n')
