@@ -9,7 +9,7 @@ import matplotlib.cm as cm
 
 def plot_read_structure(samfile, split_length, savename='None'):
     plot = []
-    offset = 10000
+    offset = 0
     rD_size = 42999
     TR_size = 13314
     with open(samfile) as f:
@@ -17,9 +17,9 @@ def plot_read_structure(samfile, split_length, savename='None'):
         for line in samdata:
             row = line.split()
             flag = int(row[1])
-            if easy_flag(flag, 4) == 1 or easy_flag(flag, 256):
+            if easy_flag(flag, 4) == 1:
             # temporarily disregard multiply mapped reads
-                plot.append((0, '*'))
+                plot.append((-10000, '*'))
             else:
                 if easy_flag(flag, 16) != 1:
                     plot.append((int(row[3]) + offset, '+'))
@@ -40,7 +40,7 @@ def plot_read_structure(samfile, split_length, savename='None'):
     ls.extend(['dashed' for i in range(3)])
     cl = []
     for coord in only_coordinates:
-        if coord == 0:
+        if coord == -10000:
             cl.append('black')
         else:
             cl.append(cm.hsv((coord - offset) / rD_size))
@@ -48,9 +48,12 @@ def plot_read_structure(samfile, split_length, savename='None'):
     lc = mc.LineCollection(vertical_lines, linewidths=lw, linestyles=ls, colors=cl)
 
     fig = plt.figure()
+    plt.subplots_adjust(left=0.2)
     ax = fig.add_subplot()
     ax.add_collection(lc)
     ax.autoscale()
+    ax.set_yticks((-10000, 0, 10000, 20000, 30000, 40000))
+    ax.set_yticklabels(('unmapped', 0, 10000, 20000, 30000, 40000))
     if savename == 'None':
         plt.show()
     else:
@@ -67,7 +70,7 @@ def multiple_files(split_length):
                 continue
             analyze_fastq_by_header('rDNA_reads.fastq', header, split_length)
             samfile = 'single_split_mapped.sam'
-            plot_read_structure(samfile, split_length, savename='figs/figure_' + str(n // 2) + '.png')
+            plot_read_structure(samfile, split_length, savename='reads_visualized/figure_' + str(n // 2) + '.png')
 
 
 
