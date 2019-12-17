@@ -2,7 +2,7 @@ import random
 import os
 import subprocess
 from matplotlib import pyplot as plt
-from search_rDNA_reads import split_sequence, make_temp_fastq
+from search_rDNA_reads import make_temp_fastq
 from rDNA_structure_of_long_reads import easy_flag
 import pandas as pd
 import itertools
@@ -13,8 +13,14 @@ with open('rDNA_index/humRibosomal.fa') as f:
 FNULL = open(os.devnull, 'w')
 
 
-# either the read is completely inside rDNA or the read is at the end of rDNA
 def is_rDNAs_healthy(samdata):
+    """Check if the read is completely inside rDNA or at the end.
+
+    Args:
+        samdata (list(str, str, ...)): samfile for the split mapped read
+    Returns:
+        healthy: 1 if so 0 if not
+    """
     mapping_state = []
     for read in samdata:
         row = read.split()
@@ -29,45 +35,48 @@ def is_rDNAs_healthy(samdata):
         healthy = 1
     else:
         for i in range(1, len(mapping_state) - 100):
-            if sum(mapping_state[i:])/len(mapping_state[i:]) > threshold or sum(mapping_state[:-i])/len(mapping_state[:-i]) > threshold:
+            if sum(mapping_state[i:])/len(mapping_state[i:]) > threshold or \
+               sum(mapping_state[:-i])/len(mapping_state[:-i]) > threshold:
                 healthy = 1
                 return healthy
     return healthy
 
 
-def find_healthy_coord(coords, target_coord, split_length):
-    margin = split_length * 5
-    within_range = []
-    for coord in coords:
-        if (coord[1] - margin) < target_coord < (coord[1] + margin):
-            within_range.append(coord)
-
-
-def measure_unstable_length(samdata, split_length, read):
-    coords = []
-    for n, split_read in enumerate(samdata):
-        row = split_read.split()
-        if easy_flag(int(row[1]), 4) != 1:
-            coords.append(n, int(row[3]))
-        else:
-            coords.append(n, 6000)
-            # becuase coordinate 6000 can be ignored in our analysis, which focuses on NC region.
-    find_healthy_coord(coords, 17000, split_length)
-
-
 def make_temp_bwa_index(header, read):
+    """Make bwa index from the reads.
+
+    Args:
+        header (str): header
+        read (str): nanopore read
+    Returns:
+        None. This script just makes fasta and index by bwa.
+    """
     with open('temp_index/temp_index.fasta', 'w') as fw:
         fw.write('>' + header.split()[0] + '\n' + read)
-    subprocess.run('bwa index temp_index/temp_index.fasta', shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
+    subprocess.run('bwa index temp_index/temp_index.fasta', shell=True,
+                   stdout=FNULL, stderr=subprocess.STDOUT)
 
 
 def find_coordinate(read, coordinate):
+    """Find exact rDNA coordinate in the given nanopore reads.
+
+    Args:
+        read (str): read sequence
+        coordinate (int): target coordinate of rDNA
+
+    Returns:
+        result: list of [mapped coordinate, direction of mapping]
+    """
     result = []
     temp_fastq_length = 500
     with open('coordinate_rDNA.fastq', 'w') as fw:
-        fw.write('>temp\n' + rDNA[coordinate-1:coordinate+temp_fastq_length-1] + '\n+\n' + 'J' * temp_fastq_length + '\n')
+        fw.write('>temp\n' + rDNA[coordinate-1:coordinate+temp_fastq_length-1]
+                 + '\n+\n' + 'J' * temp_fastq_length + '\n')
     # with -a option, multiple hits are more clearly shown
-    subprocess.run('bwa mem -Ma -x ont2d -t 5 /home/yutaro/nanopore/clive/temp_index/temp_index.fasta coordinate_rDNA.fastq > temp_sam4coord.sam', shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
+    subprocess.run('bwa mem -Ma -x ont2d -t '
+                   '/home/yutaro/nanopore/clive/temp_index/temp_index.fasta '
+                   'coordinate_rDNA.fastq > temp_sam4coord.sam', shell=True,
+                   stdout=FNULL, stderr=subprocess.STDOUT)
     with open('temp_sam4coord.sam') as samf:
         map_result = samf.readlines()[2:]
     for mapping in map_result:
@@ -84,20 +93,30 @@ def find_coordinate(read, coordinate):
     return result
 
 
-#fw.write(header.split()[0] + '\n' + read + '\n+\n' + 'J' * len(read) + '\n')
 def measure_length_main(header, read, coordinate1, coordinate2):
-    # coord1 should be smaller than coord2
+    """Return the distance between two coordinates of rDNA in the given read.
+
+    Coordinate1 shoudl be smaller than coordinate 2.
+
+    Args:
+        header (str): header
+        read (str): nanopore read
+        cooridnate1 (int): coordinate in rDNA
+        cooridnate2 (int): coordinate in rDNA
+
+    Returns:
+        distances: list of distances between the given coordinates in the read
+    """
     make_temp_bwa_index(header, read)
-    coord1_in_read = [item + [1] for item in find_coordinate(read, coordinate1)]
-    coord2_in_read = [item + [2] for item in find_coordinate(read, coordinate2)]
+    # extend items with [1] or [2] to track their coordinate.
+    coord1_in_read = [i + [1] for i in find_coordinate(read, coordinate1)]
+    coord2_in_read = [i + [2] for i in find_coordinate(read, coordinate2)]
     combined_coord = coord1_in_read + coord2_in_read
-    sorted_combined = sorted(combined_coord)
-    # automatically sorted by the first element!
 
     distances = []
     flag = 0
     previous = ''
-    for item in sorted_combined:
+    for item in sorted(combined_coord):
         if flag == 0:
             previous = item
             flag = 1
@@ -119,7 +138,21 @@ def measure_length_main(header, read, coordinate1, coordinate2):
     return distances
 
 
-def measure_length_in_fastq(fastq, split_length, coordinate1, cooridnate2):
+def measure_length_in_fastq(fastq, split_length, coord1, coord2):
+    """Measure the distances between 2 coordinates in rDNA for a set of reads.
+
+    This module takes a .fastq file that contains many multiple rDNA containing
+    reads and measures the length for each of them and returns the result.
+    Coordinate1 should be smaller than coordinate 2.
+
+    Args:
+        fastq (str): fastq filename
+        split_length (int): split length when the read is mapped to rDNA
+        coordinate1 (int): coordinate in rDNA
+        coordinate2 (int): coordinate in rDNA
+    Returns:
+        result: list of (header, lisf of measured distance between 2 coords)
+    """
     with open(fastq) as f:
         result = []
         for data in itertools.zip_longest(*[iter(f)]*4):
@@ -127,15 +160,29 @@ def measure_length_in_fastq(fastq, split_length, coordinate1, cooridnate2):
             read = data[1].strip()
             quality = data[3].strip()
             make_temp_fastq(split_length, header, read, quality)
-            subprocess.run('bwa mem -M -x ont2d -t 5 /home/yutaro/nanopore/clive/rDNA_index/humRibosomal.fa temp_fastq.fastq > temp_sam.sam', shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
+            subprocess.run('bwa mem -M -x ont2d -t 5 /home/yutaro/nanopore/'
+                           'clive/rDNA_index/humRibosomal.fa temp_fastq.fastq'
+                           ' > temp_sam.sam', shell=True, stdout=FNULL,
+                           stderr=subprocess.STDOUT)
             with open('temp_sam.sam') as samf:
                 samdata = samf.readlines()[2:]
             if is_rDNAs_healthy(samdata):
-                result.append((header.split()[0], measure_length_main(header, read, coordinate1, cooridnate2)))
+                dist = measure_length_main(header, read, coord1, coord2)
+                result.append((header.split()[0], dist))
     return result
 
 
 def plot_distance_differences(result):
+    """Plot the difference between the distances of two rDNA copies.
+
+    This function plots two histograms. One for neighboring rDNA copies and
+    another for the distance difference of two randomly chosen rDNA copies.
+
+    Args:
+        result (list(str, list)): result from measure_length_main
+    Returns:
+        None
+    """
     distances = []
     for item in result:
         for dist in item[1]:
@@ -158,30 +205,40 @@ def plot_distance_differences(result):
     plt.title('Actual distribution')
     plt.subplot(2, 1, 2)
     plt.hist(simulated_diffs[:len(actual_diffs)], bins=100, range=(0, 10000))
-    plt.title('Simulated distribution')
+    plt.title('Simulated distribution (' + str(len(actual_diffs)) + ')')
     plt.tight_layout()
-    
-    plt.savefig('distance_differences.png')
+    plt.savefig('figs/noncoding_length_differences.png', dpi=300)
 
 
 def plot_distances(result):
+    """Plot the distances of two coordinates in rDNA for a set of reads.
+
+    Args:
+        result (list(str, list)): result from measure_length_main
+    Returns:
+        None
+    """
     distances = []
     for item in result:
         for dist in item[1]:
             if dist < 30000:
                 distances.append(dist)
-    plt.hist(distances, range=(12000, 25000), bins=50)
+    plt.hist(distances, range=(13000, 22000), bins=50)
     plt.vlines([14000], 0, 2000, 'black', linestyle='dashed', linewidth=0.6)
-    plt.savefig('length_distribution_unstable_region.png', dpi=300)
+    plt.title('Noncoding length distribution (' + str(len(distances)) + ')')
+    plt.savefig('figs/length_distribution_unstable_region.png', dpi=300)
 
 
 if __name__ == '__main__':
     split_length = 200
-    #result = measure_length_in_fastq('rDNA_reads.fastq', split_length, 18000, 32000)
-    #pd.to_pickle(result, 'length_distribution.pkl')
+    #result = measure_length_in_fastq('rDNA_reads.fastq', split_length, 10000, 18000)
+    #pd.to_pickle(result, 'length_distribution_after_coding.pkl')
     result = pd.read_pickle('length_distribution.pkl')
     plot_distance_differences(result)
+    plt.close()
+    plot_distances(result)
+    plt.close()
     quit()
     for item in result:
-        if any(i > 22000 for i in item[1]):
+        if any(i < 14300 for i in item[1]):
             print(item)
