@@ -48,7 +48,6 @@ def analyze_split_reads(samfile, split_length):
         prev_direction = ''
         TR_threshold = 10
         for n, item in enumerate(samdata):
-            print(TR)
             row = item.split()
             flag = int(row[1])
             mapped_coord = int(row[3])
@@ -229,7 +228,6 @@ def analyze_fastq_by_header(fastq, header_id, split_length):
         TRs: TRs
     """
     with open(fastq) as f:
-        fourd = 0
         for line in f:
             if header_id in line:
                 header = line
@@ -240,11 +238,12 @@ def analyze_fastq_by_header(fastq, header_id, split_length):
                 FNULL = open(os.devnull, 'w')
                 subprocess.run('bwa mem -M -x ont2d -t 5 /home/yutaro/nanopore/'
                                'clive/rDNA_index/humRibosomal.fa '
-                               'temp_fastq.fastq > single_split_mapped.sam',
+                               'temp_files/temp_fastq.fastq > temp_files/'
+                               'single_split_mapped.sam',
                                shell=True, stdout=FNULL,
                                stderr=subprocess.STDOUT)
                 break
-        TRs = analyze_split_reads('single_split_mapped.sam', split_length)
+        TRs = analyze_split_reads('temp_files/single_split_mapped.sam', split_length)
         return TRs
 
 
