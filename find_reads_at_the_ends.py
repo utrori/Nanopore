@@ -1,5 +1,6 @@
 from search_rDNA_reads import make_temp_fastq
 from rDNA_structure_of_long_reads import easy_flag
+from visualize_nanopore_read import plot_read_structure
 import os
 import subprocess
 import itertools
@@ -8,6 +9,29 @@ import matplotlib.pyplot as plt
 
 
 FNULL = open(os.devnull, 'w')
+rDNA_seq = ''
+with open('rDNA_index/humRibosomal.fa') as f:
+    fadata = f.readlines()
+for line in fadata[1:]:
+    rDNA_seq += line.strip()
+
+
+def read_continuity(coordinates, split_length):
+    """Judge if the list of coordinates are cotinuous.
+    
+    Args:
+        coordinates (list(int, int,...)): list of coordinates
+        split_length (int): split_length
+    Returns:
+        1 or 0
+    """
+    for i in range(len(coordinates) - 1):
+        if split_length - 100 < abs(coordinates[i+1] - coordinates[i]) \
+           < split_length + 100:
+            continue
+        else:
+            return 0
+    return 1
 
 
 def circular_slice(sequence, index1, index2):
@@ -54,7 +78,7 @@ def find_end_reads(samfile, split_length, rDNA_coordinate=0):
     with open(samfile) as f:
         samdata = f.readlines()[2:]
     mapping_state = []
-    threshold = 0.2
+    threshold = 0.1
     for item in samdata:
         row = item.split()
         flag = int(row[1])
@@ -67,7 +91,7 @@ def find_end_reads(samfile, split_length, rDNA_coordinate=0):
         else:
             mapping_state.append(0)
 
-    offset = 20
+    offset = 70
     # you have to ignore the end of reads
     # because it can cause very high non-mapping rate by chance
     candidates = []
@@ -99,16 +123,18 @@ def find_end_reads(samfile, split_length, rDNA_coordinate=0):
 
         if n <= offset or (len(mapping_state) - n) <= offset:
             return 0
+
         if lr > rr:
             side_of_non_rDNA = 'right'
-            near_boundary_directions = [i for i in mapping_state[n-20:n]]
+            near_boundary_mss = [i for i in mapping_state[n-20:n]]
             rDNA_coordinate = int(samdata[n-1].split()[3])
         else:
             side_of_non_rDNA = 'left'
-            near_boundary_directions = [i for i in mapping_state[n:n+20]]
+            near_boundary_mss = [i for i in mapping_state[n:n+20]]
             rDNA_coordinate = int(samdata[n].split()[3])
+            return 0
         # average direction of 20 reads at the boudary region
-        if sum(near_boundary_directions) > 0:
+        if sum(near_boundary_mss) > 0:
             direction = '+'
         else:
             direction = '-'
@@ -119,12 +145,13 @@ def find_end_reads(samfile, split_length, rDNA_coordinate=0):
             return (split_length * n, direction, side_of_non_rDNA)
 
 
-def make_fastq_for_boundary(fastq, boundary):
+def make_fastq_for_boundary(fastq, boundary, half_length):
     """Make fastq for the determination of exact coordinate of rDNA end.
 
     Args:
         fastq (list(str, str, str)): (header, read, quality)
         boundary (int): Rough coordinate of boundary inferred by find_end_reads
+        half_length (int): half length of temp fastq
 
     Returns:
         Nothing. This script generates temp_boundary.fastq file.
@@ -134,7 +161,7 @@ def make_fastq_for_boundary(fastq, boundary):
     output += fastq[1][boundary - half_length:boundary + half_length] + '\n'
     output += '+' + '\n'
     output += fastq[2][boundary - half_length:boundary + half_length]
-    with open('temp_boundary.fastq', 'w') as fw:
+    with open('temp_bound.fastq', 'w') as fw:
         fw.write(output)
 
 
@@ -152,12 +179,14 @@ def find_true_boundary(header, read, quality, temp_boundary):
         true_boundary: boundary coordinate. '' if the result is ambiguous.
         rDNA_boundary: boundary in terms of rDNA coordinate
     """
-    make_fastq_for_boundary((header, read, quality), temp_boundary[0])
+    half_length = 1000
+    make_fastq_for_boundary((header, read, quality),
+                            temp_boundary[0], half_length)
     subprocess.run('bwa mem -M -x ont2d -t 5 '
                    '/home/yutaro/nanopore/clive/rDNA_index/humRibosomal.fa '
-                   'temp_boundary.fastq > temp_boundary.sam',
+                   'temp_files/temp_bound.fastq > temp_files/temp_bound.sam',
                    shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
-    with open('temp_boundary.sam') as samf:
+    with open('temp_files/temp_bound.sam') as samf:
         samdata = samf.readlines()[2:]
     row = samdata[0].split()
     rDNA_coordinate = int(row[3])
@@ -172,19 +201,19 @@ def find_true_boundary(header, read, quality, temp_boundary):
         if 'S' in temp_dist:
             dist_to_boundary = int(temp_dist[:-1])
             # non rDNA reads are expressed as read[true_boundary:]
-            true_boundary = temp_boundary[0] + 1000 - dist_to_boundary
+            true_boundary = temp_boundary[0] + half_length - dist_to_boundary
             if direction == '+':
-                rDNA_boundary = (rDNA_coordinate + 2000 - dist_to_boundary) \
-                                % 42999
+                rDNA_boundary = (rDNA_coordinate + 2 * half_length
+                                 - dist_to_boundary) % 42999
             else:
-                rDNA_boundary = (rDNA_coordinate - 2000 + dist_to_boundary) \
-                                % 42999
+                rDNA_boundary = (rDNA_coordinate - 2 * half_length
+                                 + dist_to_boundary) % 42999
     else:
         temp_dist = cigar.split('S')[0]
         if temp_dist.isdigit():
             dist_to_boundary = int(temp_dist)
             # non rDNA reads are expressed as read[:true_boundary]
-            true_boundary = temp_boundary[0] - 1000 + dist_to_boundary
+            true_boundary = temp_boundary[0] - half_length + dist_to_boundary
             if direction == '+':
                 rDNA_boundary = (rDNA_coordinate + dist_to_boundary) % 42999
             else:
@@ -196,7 +225,7 @@ def find_true_boundary2(header, read, quality, temp_boundary):
     """Map fastq for boundary and determine the boundary coordinate.
 
     In version 2, rough rDNA position estimate by the find_end_reads
-    is used.
+    is also used.
 
     Args:
         header (str): header
@@ -209,11 +238,59 @@ def find_true_boundary2(header, read, quality, temp_boundary):
         rDNA_boundary: boundary in terms of rDNA coordinate
     """
     index_half_len = 2000
+    # r_bound is rough boundary in terms of read
     r_bound = temp_boundary[0]
     temp_index = read[r_bound-index_half_len:r_bound+index_half_len]
     with open('temp_index/temp_index.fasta', 'w') as fw:
         fw.write('>temp_index\n' + temp_index)
-    subprocess.run('bwa index temp_index/temp_index.fasta')
+    subprocess.run('bwa index temp_index/temp_index.fasta', shell=True,
+                   stdout=FNULL, stderr=subprocess.STDOUT)
+
+    rD_half = 2000
+    # rD_bound is rought boundary in terms of rDNA coordiante
+    rD_bound = temp_boundary[3]
+    parital_rDNA = circular_slice(rDNA_seq, rD_bound-rD_half, rD_bound+rD_half)
+    with open('temp_files/temp_rDNA.fastq', 'w') as fw:
+        fw.write('>temp\n' + parital_rDNA + '\n+\n' + 'J' * 2 * rD_half)
+
+    subprocess.run('bwa mem -M -x ont2d -t 5 '
+
+                   '/home/yutaro/nanopore/clive/temp_index/temp_index.fasta '
+                   'temp_files/temp_rDNA.fastq > temp_files/temp_bound.sam',
+                   shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
+    with open('temp_files/temp_bound.sam') as samf:
+        samdata = samf.readlines()[2:]
+    row = samdata[0].split()
+    coordinate = int(row[3])
+    direction = temp_boundary[1]
+    side_of_non_rDNA = temp_boundary[2]
+    cigar = row[5]
+
+    if '@1e384cf6-b197-4642-88a9-7f120013b16d' in header:
+        print('>read')
+        print(temp_index)
+        print(len(temp_index))
+        print('>rDNA')
+        print(parital_rDNA)
+        print(len(parital_rDNA))
+        print(cigar)
+        print(coordinate)
+        print(direction)
+        print(side_of_non_rDNA)
+        print(rD_bound)
+        print(r_bound)
+        quit()
+
+    if side_of_non_rDNA == 'right':
+        temp_dist = cigar.split('M')[-1][:-1]
+    else:
+        temp_dist = cigar.split('S')[0]
+    if temp_dist.isdigit():
+        temp_dist = int(temp_dist)
+        if temp_dist < 400:
+            return 0
+    else:
+        return 0
 
 
 def find_boundaries_from_fastq(fastq, split_length):
@@ -231,17 +308,25 @@ def find_boundaries_from_fastq(fastq, split_length):
         for n, each_fastq in enumerate(itertools.zip_longest(*[iter(f)]*4)):
             header = each_fastq[0].strip()
             read = each_fastq[1].strip()
+            if len(read) < 40000:
+                continue
             quality = each_fastq[3].strip()
             make_temp_fastq(split_length, header, read, quality)
             subprocess.run('bwa mem -M -x ont2d -t 5 '
                            '/home/yutaro/nanopore/clive/rDNA_index/'
-                           'humRibosomal.fa temp_fastq.fastq > temp_sam.sam',
+                           'humRibosomal.fa temp_files/temp_fastq.fastq > '
+                           'temp_files/temp_sam.sam',
                            shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
-            temp_boundary = find_end_reads('temp_sam.sam', split_length,
-                                           rDNA_coordinate=1)
+            # rDNA_coordinate=1 when using find_true_boundary2
+            temp_boundary = find_end_reads('temp_files/temp_sam.sam',
+                                           split_length, rDNA_coordinate=1)
             if temp_boundary:
+                header = header.split()[0]
+                plot_read_structure(header, split_length, savename='end_reads/' +
+                                    header + '.png', title=str(temp_boundary[0]))
+                continue
                 true_boundary = find_true_boundary2(header, read,
-                                                   quality, temp_boundary)
+                                                    quality, temp_boundary)
                 if true_boundary:
                     boundaries.append((true_boundary[0], true_boundary[1],
                                        temp_boundary[1], temp_boundary[2],
@@ -254,8 +339,9 @@ if __name__ == '__main__':
     split_length = 200
 
     boundaries = find_boundaries_from_fastq(fastq, split_length)
-    pd.to_pickle(boundaries, 'rDNA_boundaries.pkl')
-    #boundaries = pd.read_pickle('rDNA_boundaries.pkl')
+    pd.to_pickle(boundaries, 'pkls/rDNA_boundaries.pkl')
+    #boundaries = pd.read_pickle('pkls/rDNA_boundaries.pkl')
+    quit()
     rDNA_coords1 = []
     rDNA_coords2 = []
     for item in boundaries:
@@ -271,7 +357,7 @@ if __name__ == '__main__':
                 rDNA_coords1.append(item[1])
 
     plt.subplot(2, 1, 1)
-    plt.hist(rDNA_coords1, bins=50, range=(0,45000))
+    plt.hist(rDNA_coords1, bins=50, range=(0, 45000))
     plt.subplot(2, 1, 2)
-    plt.hist(rDNA_coords2, bins=50, range=(0,45000))
+    plt.hist(rDNA_coords2, bins=50, range=(0, 45000))
     plt.show()
