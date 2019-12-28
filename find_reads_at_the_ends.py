@@ -1,6 +1,7 @@
 from search_rDNA_reads import make_temp_fastq
 from rDNA_structure_of_long_reads import easy_flag
 from visualize_nanopore_read import plot_read_structure
+from Bio.Seq import Seq
 import os
 import subprocess
 import itertools
@@ -266,21 +267,6 @@ def find_true_boundary2(header, read, quality, temp_boundary):
     side_of_non_rDNA = temp_boundary[2]
     cigar = row[5]
 
-    if '@1e384cf6-b197-4642-88a9-7f120013b16d' in header:
-        print('>read')
-        print(temp_index)
-        print(len(temp_index))
-        print('>rDNA')
-        print(parital_rDNA)
-        print(len(parital_rDNA))
-        print(cigar)
-        print(coordinate)
-        print(direction)
-        print(side_of_non_rDNA)
-        print(rD_bound)
-        print(r_bound)
-        quit()
-
     if side_of_non_rDNA == 'right':
         temp_dist = cigar.split('M')[-1][:-1]
     else:
@@ -322,6 +308,31 @@ def find_boundaries_from_fastq(fastq, split_length):
                                            split_length, rDNA_coordinate=1)
             if temp_boundary:
                 header = header.split()[0]
+                boundary = int(temp_boundary[0])
+                direction = temp_boundary[1]
+                side = temp_boundary[2]
+                if direction == '+':
+                    if side == 'right':
+                        bound_seq = read[boundary:boundary+10000]
+                        with open('boundary_seq1.fa', 'a') as fw:
+                            fw.write('>' + header + '\n')
+                            fw.write(bound_seq + '\n\n')
+                    else:
+                        with open('boundary_seq2.fa', 'a') as fw:
+                            fw.write('>' + header + '\n')
+                            fw.write(bound_seq + '\n\n')
+                else:
+                    bound_seq = read[boundary-10000:boundary]
+                    revcom = str(Seq(bound_seq).reverse_complement())
+                    if side == 'left':
+                        with open('boundary_seq1.fa', 'a') as fw:
+                            fw.write('>' + header + '\n')
+                            fw.write(revcom + '\n\n')
+                    else:
+                        with open('boundary_seq2.fa', 'a') as fw:
+                            fw.write('>' + header + '\n')
+                            fw.write(revcom + '\n\n')
+
                 plot_read_structure(header, split_length, savename='end_reads/' +
                                     header + '.png', title=str(temp_boundary[0]))
                 continue
