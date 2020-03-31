@@ -70,6 +70,8 @@ def make_temp_fastq(split_length, header, read, quality,
     """
     split_reads = split_sequence(read, split_length)
     split_qualities = split_sequence(quality, split_length)
+    if header[0] != '@':
+        header = '@' + header
     with open('temp_files/temp_fastq.fastq', 'w') as fw:
         for i in range(len(split_reads)):
             split_header = [header.split()[0], ' '.join(header.split()[1:])]

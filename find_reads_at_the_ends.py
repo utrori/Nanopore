@@ -10,11 +10,6 @@ import matplotlib.pyplot as plt
 
 
 FNULL = open(os.devnull, 'w')
-rDNA_seq = ''
-with open('rDNA_index/humRibosomal.fa') as f:
-    fadata = f.readlines()
-for line in fadata[1:]:
-    rDNA_seq += line.strip()
 
 
 def read_continuity(coordinates, split_length):
@@ -238,6 +233,12 @@ def find_true_boundary2(header, read, quality, temp_boundary):
         true_boundary: boundary coordinate. '' if the result is ambiguous.
         rDNA_boundary: boundary in terms of rDNA coordinate
     """
+    rDNA_seq = ''
+    with open('rDNA_index/humRibosomal.fa') as f:
+        fadata = f.readlines()
+    for line in fadata[1:]:
+        rDNA_seq += line.strip()
+
     index_half_len = 2000
     # r_bound is rough boundary in terms of read
     r_bound = temp_boundary[0]

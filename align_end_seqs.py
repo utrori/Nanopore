@@ -1,8 +1,10 @@
 import os
+import pandas as pd
 import itertools
 import subprocess
 import seaborn as sns
 import matplotlib.pyplot as plt
+from visualize_nanopore_read import plot_read_structure
 
 
 FNULL = open(os.devnull, 'w')
@@ -33,11 +35,22 @@ def align_pair(seq1, seq2):
 
 
 def group_reads(seq_list):
+    """Perform alignment for all the pairs in the list.
+
+    This function is based on DP
+
+    Args:
+        seq_list (list): list of sequences. each seq is (index, seq).
+    Returns:
+        groups (list): a list of similar reads
+    """
     groups = []
     removed = []
     for n in range(len(seq_list)):
         print(n)
         if n not in removed:
+            # group is a list of sequences.
+            # Each sequence is expressed by its number.
             group = [n]
             for m in range(len(seq_list)):
                 if m not in removed + [n]:
@@ -51,6 +64,32 @@ def group_reads(seq_list):
 
 
 if __name__ == '__main__':
+    group1 = pd.read_pickle('group1.pkl')
+    group2 = pd.read_pickle('group2.pkl')
+    num2id1 = {}
+    with open('boundary_seq1.fa') as f:
+        for n, line in enumerate(f):
+            if n % 3 == 0:
+                num2id1[n // 3] = line.strip()[1:]
+    num2id2 = {}
+    with open('boundary_seq2.fa') as f:
+        for n, line in enumerate(f):
+            if n % 3 == 0:
+                num2id2[n // 3] = line.strip()[1:]
+    for n, i in enumerate(group1):
+        if len(i) > 2:
+            for item in i:
+                plot_read_structure(num2id1[item], 200, savename='boundary1/'
+                                   + str(n) + '/' + num2id1[item])
+    for n, i in enumerate(group2):
+        if len(i) > 2:
+            try:
+                os.mkdir('boundary2/' + str(n))
+            finally:
+                for item in i:
+                    plot_read_structure(num2id2[item], 200, savename='boundary2/'
+                                       + str(n) + '/' + num2id2[item])
+    quit()
     seq_list1 = []
     with open('boundary_seq1.fa') as f:
         for fa in itertools.zip_longest(*[iter(f)]*3):
@@ -63,8 +102,10 @@ if __name__ == '__main__':
 
     groups = group_reads(seq_list1)
     print(groups)
+    pd.to_pickle(groups, 'group1.pkl')
     groups = group_reads(seq_list2)
     print(groups)
+    pd.to_pickle(groups, 'group2.pkl')
 
     quit()
     scores = []
