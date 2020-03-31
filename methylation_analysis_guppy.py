@@ -76,15 +76,8 @@ for fast5 in fast5_files:
         split_fastq = data[1].split()
         read = split_fastq[6]
         quality = split_fastq[8]
-        read_len = len(read)
         mod_scores = make_methylation_summary(read, data[2])
-        search_rDNA_reads.make_temp_fastq(split_length, read_id, read, quality)
-        FNULL = open(os.devnull, 'w')
-        subprocess.run('bwa mem -M -x ont2d -t 5 rDNA_index/humRibosomal.fa '
-                                   'temp_files/temp_fastq.fastq > temp_files/'
-                                   'single_split_mapped.sam',
-                                   shell=True, stdout=FNULL,
-                                   stderr=subprocess.STDOUT)
+        utilities.split_mapping_and_sam_analysis(split_length, read_id, read, quality, 'rDNA_index/humRibosomal.fa')
         lc = plot_read_structure('test', split_length, 0)
         fig = plt.figure()
         plt.subplots_adjust(left=0.2)
