@@ -75,7 +75,9 @@ for fast5 in fast5_files:
         read_id = data[0]
         split_fastq = data[1].split()
         read = split_fastq[6]
+        print(len(read))
         quality = split_fastq[8]
+        mod_base_table = data[2]
         mod_scores = make_methylation_summary(read, data[2])
         utilities.split_mapping_and_sam_analysis(split_length, read_id, read, quality, 'rDNA_index/humRibosomal.fa')
         lc = plot_read_structure('test', split_length, 0)
@@ -87,11 +89,14 @@ for fast5 in fast5_files:
         for score in mod_scores:
             x.append(score[0])
             y.append(score[1] * 10000)
+        for n, item in enumerate(mod_base_table):
+            if item[1] > 120:
+                ax.bar(n, item[1] * 60, width=300, color='red', zorder=3)
         ax.bar(x, y, width=100, color = 'mediumblue', zorder=0)
         ax.add_collection(lc)
         ax.set_yticks((-10000, 0, 10000, 20000, 30000, 40000))
         ax.set_yticklabels(('unmapped', 0, 10000, 20000, 30000, 40000))
         ax.autoscale()
         ax.set_ylim([-12000, 46000])
-        plt.savefig('guppy_methylation_figs/' + read_id + '.png', dpi=300)
+        plt.savefig('guppy_methylation_figs2/' + read_id + '.png', dpi=300)
         plt.close()
