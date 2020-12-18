@@ -4,17 +4,45 @@ import ont_fast5_api
 import os
 import shutil
 import subprocess
+import glob
 
+ret_str = ''
 read_ids = []
-with open('reads_visualized.txt') as f:
-    for item in itertools.zip_longest(*[iter(f)]*2):
-        read_ids.append(item[0].split()[1].strip())
+with open('clive_rDNA_reads2.fastq') as f:
+    for item in itertools.zip_longest(*[iter(f)]*4):
+        read_ids.append(item[0].split()[0][1:])
 
-fast5_list = []
-with open('fast5.listing.txt') as f:
+fqs = glob.glob('/mnt/data/cliveome/*.fastq')
+for fq in fqs:
+    print(fq)
+    with open(fq) as f:
+        for item in itertools.zip_longest(*[iter(f)]*4):
+            read_id = item[0].split()[0][1:]
+            if read_id in read_ids:
+                ret_str += read_id + '\t' + fq + '\n'
+with open('rDNA2fq_filename.txt', 'w') as fw:
+    fw.write(ret_str)
+quit()
+
+read_id2file = pd.read_pickle('read_id2file.pkl')
+print(len(read_id2file))
+print(len(read_ids))
+n = 0
+for rid in read_ids:
+    try:
+        read_id2file[rid]
+    except:
+        n += 1
+print(n)
+quit()
+with open('sequencing_summary.txt') as f:
+    f.readline()
     for line in f:
-        if 'pass' in line:
-            fast5_list.append(line.strip().split()[-1])
+        row = line.split()
+        read_id2file[row[1]] = row[0]
+
+pd.to_pickle(read_id2file, 'read_id2file.pkl')
+
 
 id2file = pd.read_pickle('id2filename.pkl')
 

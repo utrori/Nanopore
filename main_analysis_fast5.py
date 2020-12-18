@@ -10,7 +10,8 @@ import shutil
 class Fast5read(object):
     def _find_basecall_with_mod(self, h5file):
         for i in range(3):
-            bc_template = h5file['Analyses/Basecall_1D_00' + str(i) + '/BaseCalled_template']
+            bc_template = h5file['Analyses/Basecall_1D_00' + str(i) +
+                                 '/BaseCalled_template']
             if 'ModBaseProbs' in bc_template.keys():
                 return str(i)
 
@@ -21,14 +22,15 @@ class Fast5read(object):
             self.raw_duration = f['Raw/Reads/' + read_name].attrs['duration']
             self.raw = f['Raw/Reads/'+ read_name + '/Signal'][:]
             mod_loc = self._find_basecall_with_mod(f)
-            fastq = f['/Analyses/Basecall_1D_00' + mod_loc + '/BaseCalled_template/Fastq']\
-                    [()].decode().strip().split('\n')
+            basecalled_template = f['/Analyses/Basecall_1D_00' + mod_loc + '/BaseCalled_template']
+            fastq = basecalled_template['Fastq'][()].decode().strip().split('\n')
             self.seq = fastq[1]
             self.quality = fastq[3]
             #fastq length! not raw signal length
             self.length = len(self.seq)
-            self.guppy_mbt = \
-                    f['/Analyses/Basecall_1D_00' + mod_loc + '/BaseCalled_template/ModBaseProbs'][:]
+            self.guppy_mbt = basecalled_template['ModBaseProbs'][:]
+            self.guppy_trace = basecalled_template['Trace'][:]
+            self.guppy_move = basecalled_template['Move'][:]
             self.split_length = 300
             self.sam_summary = np.array(utilities.split_mapping_and_sam_analysis(self.split_length, 'temp', 
                     self.seq, self.quality, ref))
@@ -64,14 +66,52 @@ class Fast5read(object):
         plt.savefig(savedir + '/' + self.read_id + '.png', dpi=300)
         plt.close()
 
+    def get_coding_coordinates(self):
+        coding_start = 0
+        split_length = 300
+        coding_end = 13000
+        positions = self.sam_summary[:,2].astype('int32')
+        in_codings = [n if 0 < n < 13000 else 0 for n in positions]
+        flag = 0
+        start = 0 
+        end = 0
+        coding_starts_ends = []
+        for n, pos in enumerate(in_codings):
+            if flag == 0 and pos != 0:
+                flag = 1
+                start = n
+            if flag == 1 and pos == 0:
+                flag = 0
+                end = n
+                if end - start > 5:
+                    coding_starts_ends.append((start * split_length, end * split_length))
+        if flag == 1:
+            end = n
+            if end - start > 5:
+                coding_starts_ends.append((start * split_length, end * split_length))
+        return coding_starts_ends
+
+    def get_coding_met_stats(self):
+        coding_pos = self.get_coding_coordinates()
+        cpg_stats = self.guppy_mbt[:,3]
+        for start, end in coding_pos:
+            print(np.mean(cpg_stats[start:end]))
 
 if __name__ == '__main__':
     ref = 'rDNA_index/humRibosomal.fa'
-    fast5_dir = 'guppy_with_mod/workspace'
-    fast5files = glob.glob(fast5_dir + '/*.fast5')
-    print(len(set(fast5files)))
+    fast5_dir = '/mnt/data2/hpgp/HG02717_1_rDNA_fast5s_bc/workspace'
+    fast5files = glob.glob(fast5_dir + '/*.fast5', recursive=True)
     reads = []
-    savedir = '1020_plot'
+    for f in fast5files:
+        r = Fast5read(f, ref)
+        r.get_coding_met_stats()
+    quit()
+    """
+        for a, b in zip(r.guppy_move, r.guppy_trace):
+            print(a)
+            print(b)
+        quit()
+    """
     if os.path.exists(savedir):
         shutil.rmtree(savedir)
     os.mkdir(savedir)

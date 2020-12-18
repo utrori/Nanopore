@@ -7,6 +7,10 @@ from matplotlib import pyplot as plt
 import sys
 
 
+def phred_to_p(letter):
+    return 10 ** (-(ord(letter) - 33) / 10)
+
+
 def easy_flag(flag, base):
     """Return flag value based on the base.
 
