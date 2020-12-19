@@ -105,7 +105,7 @@ def measure_length_main(header, read, coordinate1, coordinate2):
         cooridnate2 (int): coordinate in rDNA
 
     Returns:
-        distances: list of distances between the given coordinates in the read
+        distances (list): list of distances between the given coordinates in the read
     """
     make_temp_bwa_index(header, read)
     # extend items with [1] or [2] to track their coordinate.

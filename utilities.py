@@ -86,14 +86,15 @@ def make_temp_fastq(split_length, header, read, quality,
                      split_qualities[i] + '\n')
 
 
+def bwa_mapping(ref_path, in_fastq, out_sam):
+    subprocess.run('bwa mem -M -x ont2d -t 6 {} {} > {}'.format(ref_path, in_fastq, out_sam),
+                   shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
+
+
 def split_mapping_and_sam_analysis(split_length, header, read, quality, ref):
     make_temp_fastq(split_length, header, read, quality)
     FNULL = open(os.devnull, 'w')
-    subprocess.run('bwa mem -M -x ont2d -t 6 ' + ref + 
-                   ' temp_files/temp_fastq.fastq > temp_files/'
-                   'single_split_mapped.sam',
-                   shell=True, stdout=FNULL,
-                   stderr=subprocess.STDOUT)
+    bwa_mapping(ref, 'temp_files/temp_fastq.fastq', 'temp_files/single_split_mapped.sam')
     sam_info = []
     with open('temp_files/single_split_mapped.sam') as f:
         samdata = f.readlines()[2:]
