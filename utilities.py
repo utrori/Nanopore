@@ -7,6 +7,9 @@ from matplotlib import pyplot as plt
 import sys
 
 
+FNULL = open(os.devnull, 'w')
+
+
 def phred_to_p(letter):
     return 10 ** (-(ord(letter) - 33) / 10)
 
@@ -93,7 +96,6 @@ def bwa_mapping(ref_path, in_fastq, out_sam):
 
 def split_mapping_and_sam_analysis(split_length, header, read, quality, ref):
     make_temp_fastq(split_length, header, read, quality)
-    FNULL = open(os.devnull, 'w')
     bwa_mapping(ref, 'temp_files/temp_fastq.fastq', 'temp_files/single_split_mapped.sam')
     sam_info = []
     with open('temp_files/single_split_mapped.sam') as f:
