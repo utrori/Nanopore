@@ -4,7 +4,7 @@ import os
 import glob
 import itertools
 import main_analysis_fastq
-import fast5class
+#import fast5class
 import copy
 import datetime
 from concurrent import futures as confu
@@ -42,6 +42,9 @@ def analyze_fastq(filename, savename):
     read_n = 0
     with open(filename) as f:
         for items in itertools.zip_longest(*[iter(f)]*4):
+            read_n += 1
+            if len(items[1]) < 40000:
+                continue
             read = main_analysis_fastq.Fastqread(items, ref)
             total_length += read.length
             if read._is_this_healthy_rDNA():
@@ -108,19 +111,14 @@ def download_files():
 
 
 def find_rDNA_fast5(rDNA_fastq, fast5_dir, out_dir):
-    if os.path.exists('/mnt/data/hpgp-data/temp_fast5s'):
-        shutil.rmtree('/mnt/data/hpgp-data/temp_fast5s')
     read_ids = []
     with open(rDNA_fastq) as f:
         for items in itertools.zip_longest(*[iter(f)]*4):
             read_ids.append(items[0].split()[0][1:])
-    fast5_path = glob.glob(fast5_dir + '**/*.fast5', recursive=True)
-    for fast5 in fast5_path:
-        subprocess.run('multi_to_single_fast5 -t 6 --recursive -i ' + fast5 + ' -s /mnt/data/hpgp-data/temp_fast5s -t 6', shell=True) 
-        for split_fast5 in glob.glob('/mnt/data/hpgp-data/temp_fast5s/**/*.fast5', recursive=True):
-            if fast5.split('/')[-1].split('.')[0] in read_ids:
-                shutil.copy(fast5, out_dir)
-        shutil.rmtree('/mnt/data/hpgp-data/temp_fast5s')
+    with open('temp_read_ids.txt', 'w') as fw:
+        for rid in read_ids:
+            fw.write(rid + '\n')
+    subprocess.run('fast5_subset --recursive -l temp_read_ids.txt -i ' + fast5_dir + ' -s ' + out_dir, shell=True) 
 
 
 def basecall(in_dir):
@@ -131,6 +129,8 @@ def basecall(in_dir):
 
 
 if __name__ == '__main__':
-    download_files()
+    for i in ["GM24143_1", "HG00733_2"]:
+        print(i)
+        find_rDNA_fast5('/mnt/data/hpgp-data/' + i + '_rDNA.fastq', '/mnt/data2/hpgp/' + i, "/mnt/data2/hpgp/" + i + "_rDNA_fast5s")
     quit()
     find_rDNA_fast5('/mnt/data2/hpgp/HG02717_1_rDNA.fastq', '/mnt/data2/hpgp/08_11_20_R941_HG02717/HG02717_1/', 'HG02717_1_rDNA_fast5s')

@@ -7,21 +7,38 @@ import subprocess
 import glob
 
 ret_str = ''
-read_ids = []
-with open('clive_rDNA_reads2.fastq') as f:
+#extracted read ids
+x_read_ids = []
+with open('clive_rDNA_reads.fastq') as f:
     for item in itertools.zip_longest(*[iter(f)]*4):
-        read_ids.append(item[0].split()[0][1:])
+        x_read_ids.append(item[0].split()[0][1:])
 
-fqs = glob.glob('/mnt/data/cliveome/*.fastq')
-for fq in fqs:
-    print(fq)
-    with open(fq) as f:
-        for item in itertools.zip_longest(*[iter(f)]*4):
-            read_id = item[0].split()[0][1:]
-            if read_id in read_ids:
-                ret_str += read_id + '\t' + fq + '\n'
-with open('rDNA2fq_filename.txt', 'w') as fw:
-    fw.write(ret_str)
+def search_from_downloaded_fastqs():
+    fqs = glob.glob('/mnt/data/cliveome/*.fastq')
+    ret_str = ''
+    for fq in fqs:
+        with open(fq) as f:
+            for item in itertools.zip_longest(*[iter(f)]*4):
+                read_id = item[0].split()[0][1:]
+                if read_id in x_read_ids:
+                    ret_str += read_id + '\t' + fq + '\n'
+    with open('rDNA2fq_filename.txt', 'w') as fw:
+        fw.write(ret_str)
+
+def search_from_summary():
+    n = 0
+    with open('sequencing_summary.txt') as f:
+        f.readline()
+        for line in f:
+            row = line.split()
+            filename = row[0]
+            read_id = row[1]
+            if read_id in x_read_ids:
+                n += 1
+    print(len(x_read_ids))
+    print(n)
+
+search_from_downloaded_fastqs()
 quit()
 
 read_id2file = pd.read_pickle('read_id2file.pkl')

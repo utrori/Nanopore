@@ -2,7 +2,7 @@
 
 import random
 import sys
-import fast5class
+#import fast5class
 import utilities
 import itertools
 import os
