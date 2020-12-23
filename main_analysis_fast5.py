@@ -48,8 +48,8 @@ class Fast5read(object):
         return x, y
 
     def plot_structure(self, ref, savedir):
-        utilities.split_mapping_and_sam_analysis(self.split_length, self.read_id, self.seq, self.quality, ref)
-        lc = utilities.plot_read_structure(self.read_id, self.split_length)
+        sam_sum = utilities.split_mapping_and_sam_analysis(self.split_length, self.read_id, self.seq, self.quality, ref)
+        lc = utilities.plot_read_structure(self.read_id, self.split_length, sam_sum)
         fig = plt.figure()
         plt.subplots_adjust(left=0.2)
         ax = fig.add_subplot()

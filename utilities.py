@@ -115,7 +115,7 @@ def split_mapping_and_sam_analysis(split_length, header, read, quality, ref):
             split_info.append(int(row[3]))
             split_info.append(row[5])
             if flag != 4:
-                split_info.append(int(line.split('AS:i:')[1].split()[0]))
+                split_info.append(int(line.split('\tAS:i:')[1].split()[0]))
             else:
                 split_info.append(0)
             sam_info.append(split_info)
@@ -144,6 +144,7 @@ def plot_read_structure(header, split_length, samdata, offset=0, title=None, sav
         header (str): header name
         split_length (int): split_length of the read when it was mapped to rDNA
         offset (int): offset of rDNA reference file
+        samdata (list): returned from split_mapping_and_sam_analysis
         savename (str): if this is specifed, the plot is saved. otherwise,
         it shows the plot.
 
