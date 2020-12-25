@@ -290,12 +290,27 @@ def single_fast5_to_fastqread(filename, ref):
 
 
 if __name__ == '__main__':
-    find_rDNA_reads('/mnt/data2/hpgp/HG02717_1_Guppy_4.0.11_prom.fastq', '/mnt/data2/hpgp/HG02717_1_rDNA.fastq')
-    find_rDNA_reads('/mnt/data2/hpgp/HG02717_1_Guppy_4.0.11_prom.fastq', '/mnt/data2/hpgp/HG02717_1_rDNA.fastq')
+    target_id = 'fda2423a-5429-4625-a946-12f2f15bdee5'
+    normal_ref = Reference('rDNA_index/humRibosomal.fa')
+    with open('clive_rDNA_reads2.fastq') as f:
+        for items in itertools.zip_longest(*[iter(f)]*4):
+            if target_id in items[0]:
+                r = Fastqread(items, normal_ref)
+                break
+    inv_pos = 87291
+    with open('temp_files/before.fq', 'w') as fw:
+        fw.write('>before\n{}\n+\n{}'.format(r.seq[inv_pos-100:inv_pos], r.quality[inv_pos-100:inv_pos]))
+    with open('temp_files/after.fq', 'w') as fw:
+        alen = 150
+        fw.write('>after\n{}\n+\n{}'.format(r.seq[inv_pos:inv_pos+alen], r.quality[inv_pos:inv_pos+alen]))
+    utilities.bwa_mapping(normal_ref.path, 'temp_files/before.fq', 'temp_files/before.sam')
+    utilities.bwa_mapping(normal_ref.path, 'temp_files/after.fq', 'temp_files/after.sam')
+    quit()
+    print([ord(i)-33 for i in r.quality[inv_pos-20:inv_pos]])
+    print([ord(i)-33 for i in r.quality[inv_pos:inv_pos+20]])
     quit()
     shutil.rmtree('temp_figs')
     os.mkdir('temp_figs')
-    normal_ref = Reference('rDNA_index/humRibosomal.fa')
     with open('inverted_reads.fastq') as f:
         for n, item in enumerate(itertools.zip_longest(*[iter(f)]*4)):
             r = Fastqread(item, normal_ref)

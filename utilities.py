@@ -1,4 +1,5 @@
 import subprocess
+from Bio.Seq import Seq
 import os
 import numpy as np
 import matplotlib.collections as mc
@@ -219,6 +220,13 @@ def plot_read_structure(header, split_length, samdata, offset=0, title=None, sav
     else:
         return lc
 
+
+def revcom(seq):
+    return str(Seq(seq).reverse_complement())
+
+
+def get_phred_quality(quality_string):
+    return [ord(l) - 33 for l in quality_string]
 
 if __name__ == '__main__':
     make_shifted_ref('rDNA_index/humRibosomal.fa', 'rDNA_index/rDNA_for_cas9.fa', -10000)

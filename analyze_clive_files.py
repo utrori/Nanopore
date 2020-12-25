@@ -82,15 +82,58 @@ class Clive_infos(object):
             pd.to_pickle(f52rid, pickle_fn2)
             return rid2f5, f52rid
 
-    def get_summary_infos(self):
-        with open('sequencing_summary.txt') as f:
-            f.readline()
+    def get_summary_infos(self, file_path):
+        read_id2filter = {}
+        read_id2length = {}
+        with open(file_path) as f:
+            defs = f.readline().split()
+            for n in range(len(defs)):
+                if 'read_id' in defs[n]:
+                    read_id_pos = n
+                if 'passes_filtering' in defs[n]:
+                    filtering_pos = n
+                if 'sequence_length_template' in defs[n]:
+                    seq_len_pos = n
             for line in f:
-                pass
+                row = line.split()
+                read_id2filter[row[read_id_pos]] = row[filtering_pos]
+                read_id2length[row[read_id_pos]] = row[seq_len_pos]
+        return read_id2filter, read_id2length
 
 
 infos = Clive_infos()
-rids = infos.get_rDNA_ids()
+rid2fil, rid2len = infos.get_summary_infos('sequencing_summary.txt')
+pngs = glob.glob('/home/yutaro/nanopore/clive/temp_figs/*.png')
+invs = [p.split('/')[-1].split('.')[0] for p in pngs]
+for i in rid2fil:
+    if i in invs:
+        subprocess.run('grep ' + i + ' sequencing_summary.txt', shell=True)
+quit()
+
+for rid in rid2fil:
+    if rid in rids3:
+        print(rid)
+clive_rids = infos.get_rDNA_ids
+
+with open('sequencing_summary.txt') as f:
+    for line in f:
+        if 'PAD51521_1ef3eda31ddeb61dcbd8277041b49fe23a3c18df_243.fast5' in line:
+            row = line.split()
+            if row[7] !='TRUE':
+                print(line)
+quit()
+
+quit()
+ts = []
+fs = []
+for rid in rids:
+    if r2f[rid] == 'TRUE':
+        ts.append(rid)
+    else:
+        fs.append(rid)
+print(len(ts))
+print(len(fs))
+quit()
 f5_ids_from_listing = infos.get_fast5_ids_from_listing()
 n = 0
 for i in f5_ids_from_listing[0]:

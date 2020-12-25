@@ -1,4 +1,5 @@
 import h5py
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import utilities
 import numpy as np
@@ -99,28 +100,79 @@ class Fast5read(object):
         for start, end in coding_pos:
             print(np.mean(cpg_stats[start:end]))
 
+    def get_coord2raw(self):
+        """Gets raw signal position from fastq sequence coordinate.
+
+        Args:
+            coord (int): coordinate in fastq
+        Returns:
+            raw_pos2coord (dict):
+        """
+        coord2raw = {}
+        m = 0
+        for n, move in enumerate(self.guppy_move):
+            if move:
+                coord2raw[m] = self.raw_start + n * self.raw_step
+                m += 1
+        return coord2raw
+
+    def get_raw2base(self):
+        raw2base = {}
+        pos2base = ['A', 'C', 'G', 'T']
+        for n, item in enumerate(self.guppy_trace):
+            pos = self.raw_start + n*self.raw_step
+            base = pos2base[np.argmax(item) % 4]
+            raw2base[pos] = base
+            raw2base[pos+1] = base
+        return raw2base
+
+    def plot_raw(self, start, end):
+        color_dict = {'A': 'coral', 'C': 'skyblue', 'G': 'greenyellow', 'T': 'plum'}
+        coral_patch = mpatches.Patch(color='coral', label='A')
+        sb_patch = mpatches.Patch(color='skyblue', label='C')
+        gy_patch = mpatches.Patch(color='greenyellow', label='G')
+        p_patch = mpatches.Patch(color='plum', label='T')
+        plt.legend(handles=[coral_patch, sb_patch, gy_patch, p_patch])
+        coord2raw = self.get_coord2raw()
+        raw2base = self.get_raw2base()
+        print(self.seq[start:end])
+        s_raw = coord2raw[start]
+        e_raw = coord2raw[end]
+        for p in range(s_raw, e_raw):
+            plt.axvspan(p, p+1, color=color_dict[raw2base[p]])
+        plt.plot([*range(s_raw,e_raw)], r.raw[s_raw:e_raw], linewidth=0.4, color='black')
+        plt.scatter([*range(s_raw,e_raw)], r.raw[s_raw:e_raw], s=1, zorder=10)
+        base_pos = [coord2raw[c] for c in range(start, end)]
+        for i in base_pos:
+            plt.vlines(x=i, ymin=400, ymax=700, color='black', linewidth=0.4)
+        plt.show()
+
+
 if __name__ == '__main__':
     ref = 'rDNA_index/humRibosomal.fa'
-    fast5_dir = '/mnt/data2/hpgp/HG02717_1_rDNA_fast5s_bc/workspace'
-    fast5files = glob.glob(fast5_dir + '/*.fast5', recursive=True)
+    fast5_dir = 'bc_fast5s/'
+    fast5files = glob.glob(fast5_dir + '**/*.fast5', recursive=True)
     reads = []
-    s = 0
-    e = 500
     for n, f in enumerate(fast5files):
-        if n < 5:
-            continue
-        r = Fast5read(f, ref)
-        plt.plot([*range(s,e)], r.raw[s:e])
-        bps = []
-        print(r.guppy_move[:50])
-        for n in range(10000):
-            if r.guppy_move[n]:
-                bps.append(r.raw_start + n*r.raw_step)
-        for i in bps:
-            if s < i < e:
-                plt.vlines(x=i, ymin=400, ymax=700, color='black', linewidth=0.5)
-        plt.show()
-        quit()
+        if 'fda2423a-5429' in f:
+            r = Fast5read(f, ref)
+            #88468
+            r.plot_raw(88465, 88475)
+            quit()
+            print(r.get_raw_pos_from_coord(87291))
+            s = r.get_raw_pos_from_coord(87250)
+            e = r.get_raw_pos_from_coord(87330)
+            bps = []
+            for n, move in enumerate(r.guppy_move):
+                if move:
+                    bps.append(r.raw_start + n*r.raw_step)
+            for i in bps:
+                if s < i < e:
+                    plt.vlines(x=i, ymin=400, ymax=700, color='black', linewidth=0.5)
+            plt.plot([*range(s,e)], r.raw[s:e], linewidth=0.3, color='black')
+            plt.scatter([*range(s,e)], r.raw[s:e], s=1)
+            plt.show()
+    quit()
     """
         for a, b in zip(r.guppy_move, r.guppy_trace):
             print(a)
