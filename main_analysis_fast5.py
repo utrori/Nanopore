@@ -145,30 +145,22 @@ class Fast5read(object):
         base_pos = [coord2raw[c] for c in range(start, end)]
         for i in base_pos:
             plt.vlines(x=i, ymin=400, ymax=700, color='black', linewidth=0.4)
+        plt.ylim((400, 700))
         plt.show()
 
 
 if __name__ == '__main__':
     ref = 'rDNA_index/humRibosomal.fa'
-    fast5_dir = 'bc_fast5s/'
+    fast5_dir = 'temp_fast5s/'
     fast5files = glob.glob(fast5_dir + '**/*.fast5', recursive=True)
     reads = []
     for n, f in enumerate(fast5files):
-        if 'fda2423a-5429' in f:
+        r = Fast5read(f, ref)
+        if '2926a192' in f:
             r = Fast5read(f, ref)
             #88468
-            r.plot_raw(88465, 88475)
+            r.plot_raw(r.length-130, r.length-100)
             quit()
-            print(r.get_raw_pos_from_coord(87291))
-            s = r.get_raw_pos_from_coord(87250)
-            e = r.get_raw_pos_from_coord(87330)
-            bps = []
-            for n, move in enumerate(r.guppy_move):
-                if move:
-                    bps.append(r.raw_start + n*r.raw_step)
-            for i in bps:
-                if s < i < e:
-                    plt.vlines(x=i, ymin=400, ymax=700, color='black', linewidth=0.5)
             plt.plot([*range(s,e)], r.raw[s:e], linewidth=0.3, color='black')
             plt.scatter([*range(s,e)], r.raw[s:e], s=1)
             plt.show()
